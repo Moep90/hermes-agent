@@ -81,6 +81,9 @@ type KanbanMessages = {
   noSkill: string
   noSkillsForProfile: string
   skillsLoadFailed: string
+  /** Skills dropdown — manual retry when the roster fetch fails. */
+  retrySkills: string
+  retryingSkills: string
   parent: string
   noParent: string
   goalMode: string
@@ -302,6 +305,8 @@ export const en: KanbanMessages = {
   noSkill: '— none —',
   noSkillsForProfile: 'No skills installed for this profile.',
   skillsLoadFailed: 'Could not load this profile’s skills.',
+  retrySkills: 'Retry',
+  retryingSkills: 'Retrying…',
   parent: "Parent (blocks until it's done)",
   noParent: '— no parent —',
   goalMode: "Goal mode (worker loops until a judge agrees it's done)",
@@ -519,6 +524,8 @@ const ja: KanbanMessages = {
   noSkill: '— なし —',
   noSkillsForProfile: 'このプロファイルにスキルはインストールされていません。',
   skillsLoadFailed: 'このプロファイルのスキル一覧を読み込めませんでした。',
+  retrySkills: '再試行',
+  retryingSkills: '再試行中…',
   parent: '親（完了するまでブロック）',
   noParent: '— 親なし —',
   goalMode: 'ゴールモード（ジャッジが完了と認めるまでワーカーがループ）',
@@ -734,6 +741,8 @@ const zh: KanbanMessages = {
   noSkill: '— 无 —',
   noSkillsForProfile: '此档案未安装任何技能。',
   skillsLoadFailed: '无法加载此档案的技能列表。',
+  retrySkills: '重试',
+  retryingSkills: '重试中…',
   parent: '父任务（完成前会阻塞）',
   noParent: '— 无父任务 —',
   goalMode: '目标模式（工作单元循环直到评判代理认可完成）',
@@ -947,6 +956,8 @@ const zhHant: KanbanMessages = {
   noSkill: '— 無 —',
   noSkillsForProfile: '此檔案未安裝任何技能。',
   skillsLoadFailed: '無法載入此檔案的技能列表。',
+  retrySkills: '重試',
+  retryingSkills: '重試中…',
   parent: '父任務（完成前會阻擋）',
   noParent: '— 無父任務 —',
   goalMode: '目標模式（工作單元循環直到評判代理認可完成）',
