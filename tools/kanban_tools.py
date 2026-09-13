@@ -284,6 +284,30 @@ def _coerce_str_list(value: Any, name: str, what: str, *, strip: bool = False):
     return value
 
 
+def _coerce_metadata_json(metadata: Any) -> Any:
+    """Accept metadata that arrived as a JSON string instead of an object.
+
+    Some models serialise a nested tool-call argument as text, so a worker
+    handing over a structured result gets rejected with "got str" and has no
+    way to comply. Observed in practice: a reviewer retried twice, then
+    completed its card with a stub payload, losing the real handoff. The CLI
+    `--metadata` flag already takes JSON text, so parsing it here makes the two
+    entry points agree. Non-strings pass through untouched and are still
+    type-checked by ``_require_dict_metadata``.
+    """
+    if not isinstance(metadata, str):
+        return metadata
+    text = metadata.strip()
+    if not text:
+        return None
+    try:
+        return json.loads(text)
+    except ValueError as exc:
+        _check(False, "metadata must be an object/dict or a JSON object string; "
+                      f"could not parse it ({exc})")
+        return None
+
+
 def _require_dict_metadata(metadata: Any) -> None:
     _check(metadata is None or isinstance(metadata, dict),
            f"metadata must be an object/dict, got {type(metadata).__name__}")
@@ -565,7 +589,7 @@ def _handle_complete(args: dict, **kw) -> str:
     tid = _worker_guard("kanban_complete", args)
     summary = _redact_opt(args.get("summary"))
     result = _redact_opt(args.get("result"))
-    metadata = args.get("metadata")
+    metadata = _coerce_metadata_json(args.get("metadata"))
     if isinstance(metadata, dict):
         # Keep the unredacted dict if the redacted JSON cannot be re-parsed.
         metadata = _redact_metadata(metadata) or metadata
@@ -653,7 +677,7 @@ def _handle_request_review(args: dict, **kw) -> str:
     summary = _redact(_require_text(
         args, "summary", "summary is required — describe what was implemented and how it "
         "was verified so the reviewer has context"))
-    metadata = args.get("metadata")
+    metadata = _coerce_metadata_json(args.get("metadata"))
     _require_dict_metadata(metadata)
     if metadata is not None:
         metadata = _redact_metadata(metadata)
