@@ -77,7 +77,17 @@ def _read_text_with_timeout(path: Path, timeout: Optional[float] = None) -> Opti
     raise value  # type: ignore[misc]
 
 
-def _scan_context_content(content: str, filename: str) -> str:
+class ContextFileBlocked(RuntimeError):
+    """A profile-owned context file (SOUL.md) tripped the injection scanner.
+
+    Repo-sourced context files (AGENTS.md, .cursorrules) degrade to a BLOCKED
+    placeholder because a cloned repo is untrusted by definition. SOUL.md is
+    profile-owned: a block there is an operator configuration error, and running
+    the agent without its SOUL silently produces plausible output under the
+    profile's name. Fail loudly instead."""
+
+
+def _scan_context_content(content: str, filename: str, *, hard_fail: bool = False) -> str:
     """Scan a context file (AGENTS.md, .cursorrules, SOUL.md) for injection; matches are BLOCKED.
 
     "context" scope only (strict-scope SSH-backdoor/persistence/exfil patterns are too aggressive for a
@@ -88,6 +98,13 @@ def _scan_context_content(content: str, filename: str) -> str:
         content = content[1:]
     findings = _scan_for_threats(content, scope="context")
     if findings:
+        if hard_fail:
+            logger.error("Context file %s blocked: %s — refusing to run without it", filename, ", ".join(findings))
+            raise ContextFileBlocked(
+                f"{filename} tripped the prompt-injection scanner ({', '.join(findings)}). "
+                f"Refusing to build a prompt without it: the agent would run with no {filename} "
+                f"and still answer under this profile's name. Fix the wording in {filename}."
+            )
         logger.warning("Context file %s blocked: %s", filename, ", ".join(findings))
         return f"[BLOCKED: {filename} contained potential prompt injection ({', '.join(findings)}). Content not loaded.]"
     return content
@@ -1477,8 +1494,10 @@ def load_soul_md(context_length: Optional[int] = None, home_override: "Path | No
             content = strip_legacy_protocol(content).strip()
         if not content:
             return None
-        return _truncate_content(_scan_context_content(content, "SOUL.md"), "SOUL.md", context_length=context_length,
+        return _truncate_content(_scan_context_content(content, "SOUL.md", hard_fail=True), "SOUL.md", context_length=context_length,
                                  read_path=str(soul_path))
+    except ContextFileBlocked:
+        raise
     except Exception as e:
         logger.debug("Could not read SOUL.md from %s: %s", soul_path, e)
         return None
