@@ -546,6 +546,25 @@ def test_a_dry_run_records_the_conflict_without_writing(board):
         assert _reconcile_cards(kb, conn) == []
 
 
+def test_an_unreviewable_card_does_not_read_as_pending_review_work(board):
+    """Health probes use ``has_spawnable_review`` to tell a stuck board from a
+    correctly idle one. A card whose only candidate reviewer is its own
+    implementer is never claimed, so reporting it as pending review work would
+    make the board read "stuck" forever -- the exact distinction that predicate
+    exists to make."""
+    kb = board
+    from hermes_cli import kanban_db_connect as kbc
+    from hermes_cli import kanban_db_dispatch as kbd
+    with kbc.connect_closing() as conn:
+        tid = _request_review(kb, conn)  # implementer is still the assignee
+        assert kb.get_task(conn, tid).status == "review"
+        assert kbd.has_spawnable_review(conn) is False
+
+        # Routing it to someone who did not write it makes it real review work.
+        assert kb.reassign_task(conn, tid, "gauge")
+        assert kbd.has_spawnable_review(conn) is True
+
+
 def test_an_unspawnable_review_row_does_not_starve_the_ready_lane(board):
     """Regression: the review reservation holds a slot back whenever spawnable
     review work exists. A card that can never be spawned must not hold it."""

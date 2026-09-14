@@ -98,6 +98,57 @@ def test_without_a_configured_orchestrator_nothing_is_rewritten(monkeypatch):
     assert pb.is_orchestrator_profile() is False
 
 
+def test_agent_init_survives_a_prompt_builder_from_before_this_change(monkeypatch):
+    """A gateway or desktop process that imported ``agent.prompt_builder``
+    BEFORE an update keeps that module object in ``sys.modules`` while loading a
+    newer ``agent_init`` after it. A hard ``from ... import kanban_guidance_for``
+    against that stale module aborts agent init outright -- observed live as
+    "agent init failed: cannot import name 'kanban_guidance_for'". A per-profile
+    refinement of the prompt must degrade, never fail startup.
+    """
+    import model_tools
+    from agent import agent_init
+
+    monkeypatch.delattr(pb, "kanban_guidance_for", raising=True)
+    monkeypatch.setattr(
+        model_tools, "get_tool_definitions",
+        lambda **kwargs: [{"function": {"name": "kanban_show"}}],
+    )
+
+    class _Agent:
+        quiet_mode = True
+        tools = None
+        valid_tool_names = set()
+
+    agent = _Agent()
+    agent_init._load_tools(agent, None, None)
+    assert agent._kanban_worker_guidance == pb.KANBAN_GUIDANCE
+
+
+def test_a_guidance_helper_that_raises_does_not_fail_startup(monkeypatch):
+    """Same contract for a helper that exists but blows up."""
+    import model_tools
+    from agent import agent_init
+
+    def _boom(*args, **kwargs):
+        raise RuntimeError("profile resolution exploded")
+
+    monkeypatch.setattr(pb, "kanban_guidance_for", _boom)
+    monkeypatch.setattr(
+        model_tools, "get_tool_definitions",
+        lambda **kwargs: [{"function": {"name": "kanban_show"}}],
+    )
+
+    class _Agent:
+        quiet_mode = True
+        tools = None
+        valid_tool_names = set()
+
+    agent = _Agent()
+    agent_init._load_tools(agent, None, None)
+    assert agent._kanban_worker_guidance == pb.KANBAN_GUIDANCE
+
+
 def test_an_unreadable_config_does_not_break_prompt_building(monkeypatch):
     """Prompt composition must never be what takes a session down."""
     import hermes_cli.config as cfgmod
