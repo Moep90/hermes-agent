@@ -105,3 +105,20 @@ def test_delegated_child_is_not_a_kanban_worker(clear_kanban_env):
         assert build_kanban_stop_nudge(messages=[]) is None
 
     assert kanban_stop_nudge_enabled() is True
+
+
+def test_in_process_cron_job_is_not_a_kanban_worker(clear_kanban_env):
+    """A cron job fired via cronjob(action="run") inside a dispatcher-owned worker runs
+    under non_dispatcher_owned_context: it inherits HERMES_KANBAN_TASK but owns no board
+    task and carries no kanban toolset (tools/kanban_tools.py withholds it), so the nudge
+    asks for a tool it cannot call."""
+    from agent.delegation_context import non_dispatcher_owned_context
+
+    clear_kanban_env.setenv("HERMES_KANBAN_TASK", "t_parent")
+    assert kanban_stop_nudge_enabled() is True
+
+    with non_dispatcher_owned_context():
+        assert kanban_stop_nudge_enabled() is False
+        assert build_kanban_stop_nudge(messages=[]) is None
+
+    assert kanban_stop_nudge_enabled() is True
