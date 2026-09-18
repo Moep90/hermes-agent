@@ -34,7 +34,13 @@ PROFILES = ("foreman", "default", "gauge")
 def _home(orchestrator: str | None) -> str:
     home = tempfile.mkdtemp(prefix="kanban_reconcile_test_")
     for profile in PROFILES:
-        os.makedirs(os.path.join(home, "profiles", profile), exist_ok=True)
+        profile_dir = os.path.join(home, "profiles", profile)
+        os.makedirs(profile_dir, exist_ok=True)
+        # `profile_exists` resolves through `named_profile_is_live`, which requires an identity
+        # marker: a bare dir is a ghost shell and never spawnable, so a reconciliation card
+        # assigned to a marker-less `foreman` would not read as dispatchable work.
+        with open(os.path.join(profile_dir, "config.yaml"), "w", encoding="utf-8") as fh:
+            fh.write("{}\n")
     body = "kanban:\n  review_dispatch: true\n"
     if orchestrator:
         body += f"  orchestrator_profile: {orchestrator}\n"

@@ -109,6 +109,7 @@ def test_agent_init_survives_a_prompt_builder_from_before_this_change(monkeypatc
     import model_tools
     from agent import agent_init
 
+    monkeypatch.setenv("HERMES_KANBAN_TASK", "t_abc123")
     monkeypatch.delattr(pb, "kanban_guidance_for", raising=True)
     monkeypatch.setattr(
         model_tools, "get_tool_definitions",
@@ -133,6 +134,7 @@ def test_a_guidance_helper_that_raises_does_not_fail_startup(monkeypatch):
     def _boom(*args, **kwargs):
         raise RuntimeError("profile resolution exploded")
 
+    monkeypatch.setenv("HERMES_KANBAN_TASK", "t_abc123")
     monkeypatch.setattr(pb, "kanban_guidance_for", _boom)
     monkeypatch.setattr(
         model_tools, "get_tool_definitions",
