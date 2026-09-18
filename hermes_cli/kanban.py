@@ -928,10 +928,14 @@ def _commented(conn, reason: Optional[str], author, prefix: str, op):
 
 def _cmd_block(args: argparse.Namespace) -> int:
     reason = _joined_words(args.reason)
+    if not reason:
+        return _err("kanban block: a reason is required — "
+                    "`hermes kanban block <id> <why>`. A blocked card with no "
+                    "recorded reason is not actionable by anyone.", 2)
     kind = getattr(args, "kind", None)
     author = _profile_author()
     ids = _bulk_ids(args)
-    suffix = f": {reason}" if reason else ""
+    suffix = f": {reason}"
     with kbc.connect_closing() as conn:
         def ok_msg(tid):
             # Report where it landed: dependency blocks -> todo, tripped unblock-loop breaker -> triage.

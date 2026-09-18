@@ -3073,6 +3073,13 @@ def block_task(
     so a forever-flaky task escalates. True on any transition."""
     if kind is not None and kind not in VALID_BLOCK_KINDS:
         raise ValueError(f"block kind must be one of {sorted(VALID_BLOCK_KINDS)} or None")
+    # Blocking is the one transition whose whole purpose is to hand work to
+    # someone else. A NULL reason is indistinguishable from a bug and leaves
+    # every reader (operator, orchestrator, diagnostics) inferring the cause
+    # from old events. Enforced here because all three callers -- the tool, the
+    # CLI and the dashboard -- funnel through this function.
+    if not (reason or "").strip():
+        raise ValueError("block reason is required")
     with write_txn(conn):
         cur_row = conn.execute(
             "SELECT status, block_kind, block_recurrences FROM tasks WHERE id = ?", (task_id,),

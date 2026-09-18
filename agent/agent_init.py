@@ -1081,12 +1081,23 @@ def _load_tools(agent, enabled_toolsets, disabled_toolsets):
     agent.valid_tool_names = {tool["function"]["name"] for tool in agent.tools} if agent.tools else set()
     # Kanban guidance is session-static for the dispatcher-owned worker only. Profiles may
     # expose kanban_show interactively, and children/cron runs inherit the env var, without
-    # owning a task.
+    # owning a task. Resolved through the module rather than a from-import: a long-running
+    # process (gateway, desktop) can hold an ``agent.prompt_builder`` imported BEFORE an update
+    # while loading this file after it, and a hard ``from ... import kanban_guidance_for``
+    # against that stale module aborts agent init outright. Degrade to the shipped guidance
+    # instead; a per-profile refinement of the prompt is never worth failing startup for.
     from agent.delegation_context import owned_kanban_task
-    from agent.prompt_builder import KANBAN_GUIDANCE
-    agent._kanban_worker_guidance = (
-        KANBAN_GUIDANCE if owned_kanban_task() and "kanban_show" in agent.valid_tool_names else ""
-    )
+    from agent import prompt_builder as _pb
+    if not (owned_kanban_task() and "kanban_show" in agent.valid_tool_names):
+        agent._kanban_worker_guidance = ""
+    else:
+        _guidance_for = getattr(_pb, "kanban_guidance_for", None)
+        try:
+            agent._kanban_worker_guidance = (
+                _pb.KANBAN_GUIDANCE if _guidance_for is None else _guidance_for()
+            )
+        except Exception:
+            agent._kanban_worker_guidance = _pb.KANBAN_GUIDANCE
     if agent.quiet_mode:
         return
     if agent.tools:

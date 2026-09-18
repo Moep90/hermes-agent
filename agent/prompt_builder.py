@@ -342,6 +342,48 @@ KANBAN_GUIDANCE = (
     "own run; board tasks are for cross-agent handoffs that outlive one API loop."
 )
 
+# The one sentence in the block above that is wrong for the profile named by
+# ``kanban.orchestrator_profile``. For an ordinary worker spawning a follow-up
+# it is correct: fan out, then finish the card you were given. For an
+# orchestrator ROOT it inverts the lifecycle -- the root is the card that waits
+# for the children and judges them, so completing it at fan-out time destroys
+# the only thing that reconciles the goal. Resolved at composition time rather
+# than argued with in a SOUL, so the effective prompt carries one lifecycle.
+_ORCHESTRATOR_FANOUT_COMPLETE = (
+    "Then `kanban_complete` your own task with a summary of the decomposition. "
+)
+_ORCHESTRATOR_ROOT_CONTRACT = (
+    "Then STOP: do NOT complete your own task at fan-out time. Your card is the "
+    "root — it waits for those children, and completing it is the judgment you "
+    "make after reading their results, never the plan you made before they ran. "
+)
+
+
+def is_orchestrator_profile(profile=None):
+    """Whether ``profile`` (default: the active one) owns orchestration roots on
+    this board, i.e. it is ``kanban.orchestrator_profile``."""
+    try:
+        from hermes_cli.config import load_config
+        from hermes_cli.profiles import get_active_profile_name
+
+        configured = ((load_config() or {}).get("kanban", {}).get("orchestrator_profile") or "").strip()
+        if not configured:
+            return False
+        return (profile or get_active_profile_name()).strip() == configured
+    except Exception:
+        return False
+
+
+def kanban_guidance_for(profile=None):
+    """``KANBAN_GUIDANCE`` with the orchestrator paragraph made consistent with
+    the role the board actually assigns this profile."""
+    if not is_orchestrator_profile(profile):
+        return KANBAN_GUIDANCE
+    return KANBAN_GUIDANCE.replace(
+        _ORCHESTRATOR_FANOUT_COMPLETE, _ORCHESTRATOR_ROOT_CONTRACT, 1,
+    )
+
+
 TOOL_USE_ENFORCEMENT_GUIDANCE = (
     "# Tool-use enforcement\n"
     "You MUST use your tools to take action — do not describe what you would do or plan to do without actually doing "

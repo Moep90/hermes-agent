@@ -65,6 +65,36 @@ def build_kanban_stop_nudge(
         return None
 
     tid = (task_id or os.environ.get("HERMES_KANBAN_TASK") or "").strip() or "this task"
+    # The generic steps are written for a worker holding a deliverable. For the
+    # profile that owns orchestration roots they invert the lifecycle: its card
+    # is the root, "finish the deliverable" is work it must never do, and
+    # completing at fan-out time destroys the only card that reconciles the
+    # goal. A dependency block is a terminal board call AND the correct parked
+    # state, so the guard keeps its contract without asking for the wrong one.
+    try:
+        from agent.prompt_builder import is_orchestrator_profile
+
+        orchestrating = is_orchestrator_profile()
+    except Exception:
+        orchestrating = False
+    if orchestrating:
+        steps = (
+            "1. If you have already fanned this goal out into child cards, do "
+            "NOT complete this card — it is the root, and completing it at "
+            "fan-out time is the judgment you have not made yet. Park it with "
+            "`kanban_block(kind='dependency', reason=...)`: that IS a terminal "
+            "board call, and the board re-promotes the root when its children "
+            "finish.\n"
+            "2. Otherwise call `kanban_complete(summary=...)` when every "
+            "acceptance criterion is met with evidence, or "
+            "`kanban_block(reason=...)` when it needs a human decision.\n\n"
+        )
+    else:
+        steps = (
+            "1. Finish any remaining deliverable (write the required file(s) now).\n"
+            "2. Call `kanban_complete(summary=..., artifacts=[...])` if the work "
+            "is done, OR `kanban_block(reason=...)` if you are blocked.\n\n"
+        )
     return (
         "[System: You are a Hermes kanban worker. A plain-text reply is NOT a "
         "terminal state for the board.\n\n"
@@ -72,9 +102,7 @@ def build_kanban_stop_nudge(
         "causes a protocol violation (clean exit with no "
         "`kanban_complete` / `kanban_block`).\n\n"
         "Do this immediately in your next response — do not narrate intent:\n"
-        "1. Finish any remaining deliverable (write the required file(s) now).\n"
-        "2. Call `kanban_complete(summary=..., artifacts=[...])` if the work "
-        "is done, OR `kanban_block(reason=...)` if you are blocked.\n\n"
+        + steps +
         "Never end a turn with only a promise of future action. Repeated "
         "protocol violations will block this task and require manual intervention.]"
     )

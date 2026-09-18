@@ -551,7 +551,14 @@ def _drag_to(conn, task_id: str, s: str) -> bool:
 _STATUS_HANDLERS: dict[str, Any] = {
     "done": lambda conn, tid, p: kanban_db.complete_task(
         conn, tid, result=p.result, summary=p.summary, metadata=p.metadata, force=True),
-    "blocked": lambda conn, tid, p: kanban_db.block_task(conn, tid, reason=getattr(p, "block_reason", None)),
+    # A drag carries no prose, and block_task refuses a blank reason. Record the
+    # provenance instead of NULL: "a human blocked this from the dashboard
+    # without stating a cause" is an authoritative account of what happened,
+    # which an empty reason is not.
+    "blocked": lambda conn, tid, p: kanban_db.block_task(
+        conn, tid,
+        reason=(getattr(p, "block_reason", None) or "").strip()
+        or "blocked from the dashboard (no reason given)"),
     "scheduled": lambda conn, tid, p: kanban_db.schedule_task(conn, tid, reason=getattr(p, "block_reason", None)),
     "review": lambda conn, tid, p: kanban_db.request_review(
         conn, tid, summary=p.summary, metadata=p.metadata, reviewer=(p.assignee or None), force=True),
