@@ -12,6 +12,12 @@ import {
   Button,
   cn,
   Codicon,
+  Command,
+  CommandEmpty,
+  CommandInput,
+  CommandItem,
+  CommandItemCheck,
+  CommandList,
   compactNumber,
   ContextMenu,
   ContextMenuContent,
@@ -19,6 +25,7 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
   Contribute,
+  controlVariants,
   Dialog,
   DialogContent,
   DialogFooter,
@@ -35,6 +42,9 @@ import {
   Input,
   isSubmitEnter,
   Loader,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
   SearchField,
   Select,
   SelectContent,
@@ -535,6 +545,57 @@ function Field({ children, label }: { children: ReactNode; label: string }) {
   )
 }
 
+// Searchable multi-select over the assignee's installed skills. Stays open
+// while picking so several skills can be toggled in one pass.
+export function SkillsPicker({
+  onChange,
+  options,
+  value
+}: {
+  onChange: (next: string[]) => void
+  options: string[]
+  value: string[]
+}) {
+  const k = useKanban()
+  const [open, setOpen] = useState(false)
+
+  const toggle = (name: string) =>
+    onChange(value.includes(name) ? value.filter(picked => picked !== name) : [...value, name])
+
+  return (
+    <Popover onOpenChange={setOpen} open={open}>
+      <PopoverTrigger asChild>
+        <button
+          aria-expanded={open}
+          aria-haspopup="listbox"
+          className={cn(controlVariants(), 'flex items-center justify-between gap-2 text-left')}
+          disabled={options.length === 0}
+          type="button"
+        >
+          <span className={cn('min-w-0 truncate', value.length === 0 && 'text-muted-foreground')}>
+            {value.length ? value.join(', ') : k.skillsPlaceholder}
+          </span>
+          <Codicon className="shrink-0 opacity-60" name="chevron-down" size="0.875rem" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="min-w-(--radix-popover-trigger-width)" variant="menu">
+        <Command variant="menu">
+          <CommandInput autoFocus placeholder={k.searchSkills} />
+          <CommandList>
+            <CommandEmpty>{k.noSkillMatch}</CommandEmpty>
+            {options.map(name => (
+              <CommandItem key={name} onSelect={() => toggle(name)} value={name}>
+                <span className="min-w-0 flex-1 truncate">{name}</span>
+                <CommandItemCheck checked={value.includes(name)} />
+              </CommandItem>
+            ))}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
 function NewTaskDialog({
   onClose,
   parents,
@@ -568,9 +629,9 @@ function NewTaskDialog({
   const [bodyText, setBodyText] = useState('')
   const [assignee, setAssignee] = useState('')
   const [priority, setPriority] = useState('0')
-  // One skill picked from the assignee's installed set (empty = none). The
-  // dropdown options re-query per assignee below; a change resets the pick.
-  const [skill, setSkill] = useState('')
+  // Skills picked from the assignee's installed set. The options re-query per
+  // assignee below; picks the new roster lacks are dropped on submit.
+  const [skills, setSkills] = useState<string[]>([])
   const [workspaceKind, setWorkspaceKind] = useState<string>(boardDefaultKind)
   // Empty = inherit the board's default project dir (backend resolves it);
   // a path here overrides just this task. Only meaningful for dir/worktree.
@@ -607,7 +668,7 @@ function NewTaskDialog({
     isFetching: skillsLoading,
     refetch: refetchSkills
   } = useQuery({
-    queryKey: ['kanban', 'profile-skills', skillsProfile],
+    queryKey: ['kanban', 'profile-skills', scope, skillsProfile],
     queryFn: () => fetchProfileSkills(skillsProfile),
     staleTime: 60_000,
     retry: false
@@ -615,7 +676,7 @@ function NewTaskDialog({
 
   const profileSkills = skillsData?.skills ?? []
   // A stale pick (from a previous assignee) must never ride along silently.
-  const selectedSkill = profileSkills.includes(skill) ? skill : ''
+  const selectedSkills = skills.filter(name => profileSkills.includes(name))
 
   // Reset per open — the dialog is externally controlled (open = target set),
   // so onOpenChange(true) never fires; key the reset off `target` (and the
@@ -626,7 +687,7 @@ function NewTaskDialog({
       setBodyText('')
       setAssignee('')
       setPriority('0')
-      setSkill('')
+      setSkills([])
       setWorkspaceKind(boardDefaultKind)
       setWorkspacePath('')
       setParent('')
@@ -657,7 +718,7 @@ function NewTaskDialog({
         goal_mode: goalMode,
         parents: parent ? [parent] : undefined,
         priority: Number(priority) || 0,
-        skills: selectedSkill ? [selectedSkill] : undefined,
+        skills: selectedSkills.length ? selectedSkills : undefined,
         title: trimmed,
         triage: isTriage,
         workspace_kind: workspaceKind,
@@ -772,28 +833,14 @@ function NewTaskDialog({
           </Field>
 
           <Field label={k.skills}>
-            <Select onValueChange={v => setSkill(v === NO_PARENT ? '' : v)} value={selectedSkill || NO_PARENT}>
-              <SelectTrigger>
-                <SelectValue placeholder={k.skillsPlaceholder} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NO_PARENT}>{k.noSkill}</SelectItem>
-                {profileSkills.map(name => (
-                  <SelectItem key={name} value={name}>
-                    {name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SkillsPicker onChange={setSkills} options={profileSkills} value={selectedSkills} />
             {/* Empty roster and fetch failures are states, not errors — the
                 task still creates fine without an extra skill. A failed fetch
                 caches for the stale window, so offer a manual retry rather than
                 stranding the profile with no skills until it lapses. */}
             {skillsFailed ? (
               <span className="inline-flex items-center gap-1.5">
-                <span className="text-[0.625rem] text-(--ui-text-quaternary)">
-                  {k.skillsLoadFailed}
-                </span>
+                <span className="text-[0.625rem] text-(--ui-text-quaternary)">{k.skillsLoadFailed}</span>
                 <Button
                   disabled={skillsLoading}
                   onClick={() => void refetchSkills()}

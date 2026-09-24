@@ -77,8 +77,9 @@ type KanbanMessages = {
   parkedOption: string
   skills: string
   skillsPlaceholder: string
-  /** Skills dropdown — first option ("none") and the empty-roster hint. */
-  noSkill: string
+  /** Skills picker — search field, no-match row, and the empty-roster hint. */
+  searchSkills: string
+  noSkillMatch: string
   noSkillsForProfile: string
   skillsLoadFailed: string
   /** Skills dropdown — manual retry when the roster fetch fails. */
@@ -301,8 +302,9 @@ export const en: KanbanMessages = {
   defaultOption: name => `${name} (default)`,
   parkedOption: "unassigned (parked — won't run)",
   skills: 'Skills (from the assignee)',
-  skillsPlaceholder: 'Pick a skill installed for the assignee…',
-  noSkill: '— none —',
+  skillsPlaceholder: 'Pick skills installed for the assignee…',
+  searchSkills: 'Search skills…',
+  noSkillMatch: 'No matching skill',
   noSkillsForProfile: 'No skills installed for this profile.',
   skillsLoadFailed: 'Could not load this profile’s skills.',
   retrySkills: 'Retry',
@@ -521,7 +523,8 @@ const ja: KanbanMessages = {
   parkedOption: '未割り当て（保留 — 実行されません）',
   skills: 'スキル（担当のプロファイルから）',
   skillsPlaceholder: '担当プロファイルにインストール済みのスキルを選択…',
-  noSkill: '— なし —',
+  searchSkills: 'スキルを検索…',
+  noSkillMatch: '一致するスキルはありません',
   noSkillsForProfile: 'このプロファイルにスキルはインストールされていません。',
   skillsLoadFailed: 'このプロファイルのスキル一覧を読み込めませんでした。',
   retrySkills: '再試行',
@@ -738,7 +741,8 @@ const zh: KanbanMessages = {
   parkedOption: '未分配（搁置 — 不会运行）',
   skills: '技能（来自指派档案）',
   skillsPlaceholder: '选择指派档案已安装的技能…',
-  noSkill: '— 无 —',
+  searchSkills: '搜索技能…',
+  noSkillMatch: '没有匹配的技能',
   noSkillsForProfile: '此档案未安装任何技能。',
   skillsLoadFailed: '无法加载此档案的技能列表。',
   retrySkills: '重试',
@@ -953,7 +957,8 @@ const zhHant: KanbanMessages = {
   parkedOption: '未指派（擱置 — 不會執行）',
   skills: '技能（來自指派檔案）',
   skillsPlaceholder: '選擇指派檔案已安裝的技能…',
-  noSkill: '— 無 —',
+  searchSkills: '搜尋技能…',
+  noSkillMatch: '沒有符合的技能',
   noSkillsForProfile: '此檔案未安裝任何技能。',
   skillsLoadFailed: '無法載入此檔案的技能列表。',
   retrySkills: '重試',
