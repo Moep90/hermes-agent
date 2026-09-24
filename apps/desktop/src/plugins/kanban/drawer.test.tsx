@@ -1,4 +1,4 @@
-import type { PluginRestOptions } from '@hermes/plugin-sdk'
+import { host, type PluginRestOptions } from '@hermes/plugin-sdk'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -23,6 +23,7 @@ const legacyDetail: Omit<KanbanTaskDetail, 'attachments'> = {
 }
 
 let detail: object
+let commentReply: object
 let client: QueryClient
 let disposeApi: () => void
 let disposeLocales: () => void
@@ -35,7 +36,7 @@ const rest = vi.fn(async (path: string, options?: PluginRestOptions): Promise<un
   }
 
   if (path.startsWith('/tasks/t_example/comments') && options?.method === 'POST') {
-    return { ok: true }
+    return commentReply
   }
 
   if (path === '/tasks/t_example') {
@@ -58,6 +59,7 @@ const rest = vi.fn(async (path: string, options?: PluginRestOptions): Promise<un
 })
 
 beforeEach(() => {
+  commentReply = { ok: true }
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   disposeLocales = registerPluginLocales('kanban', KANBAN_LOCALES)
   disposeApi = bindApi(
@@ -164,6 +166,20 @@ describe('task modal dialog', () => {
         expect.objectContaining({ method: 'POST', body: expect.objectContaining({ body: 'looks good' }) })
       )
     )
+  })
+
+  it('does not reclaim a requeued note the board comment_moves_to already moved', async () => {
+    detail = { ...legacyDetail, attachments: [], task: { ...legacyDetail.task, status: 'running' } }
+    commentReply = { ok: true, moved_to: 'triage' }
+    const notify = vi.spyOn(host, 'notify')
+    openDrawer()
+
+    fireEvent.change(await screen.findByPlaceholderText(en.messageWorker), { target: { value: 'redo it' } })
+    fireEvent.click(screen.getByRole('button', { name: en.requeueWithNote }))
+
+    await waitFor(() => expect(notify).toHaveBeenCalledWith({ kind: 'info', message: en.notePosted }))
+    expect(rest).not.toHaveBeenCalledWith(expect.stringMatching(/\/reclaim/), expect.anything())
+    notify.mockRestore()
   })
 
   it('shows the workspace path as its own value, not prefixed with the raw kind', async () => {
