@@ -3300,6 +3300,17 @@
     // options always match the profile that will actually run the task.
     const [profileSkills, setProfileSkills] = useState([]);
     const [skillsLoadErr, setSkillsLoadErr] = useState(false);
+    // Blank assignee runs as kanban.default_assignee, not literally "default".
+    const [defaultAssignee, setDefaultAssignee] = useState("default");
+    useEffect(function () {
+      var cancelled = false;
+      SDK.fetchJSON(`${API}/orchestration`)
+        .then(function (d) {
+          if (!cancelled && d && d.resolved_default_assignee) setDefaultAssignee(d.resolved_default_assignee);
+        })
+        .catch(function () {});
+      return function () { cancelled = true; };
+    }, []);
     // A board with a configured workdir defaults to a persistent workspace:
     // worktree for git repositories, dir for ordinary directories. Boards
     // without one keep scratch for disposable research and ops tasks.
@@ -3322,7 +3333,7 @@
     useEffect(function () {
       const profile = assignee.trim();
       const timer = setTimeout(function () {
-        SDK.fetchJSON(`${API}/profiles/${encodeURIComponent(profile || "default")}/skills`)
+        SDK.fetchJSON(`${API}/profiles/${encodeURIComponent(profile || defaultAssignee)}/skills`)
           .then(function (d) {
             if (cancelled) return;
             setProfileSkills((d && d.skills) || []);
@@ -3336,7 +3347,7 @@
       }, 250);
       var cancelled = false;
       return function () { cancelled = true; clearTimeout(timer); };
-    }, [assignee]);
+    }, [assignee, defaultAssignee]);
     // A pick left over from a previous assignee must never ride along.
     const selectedSkill = profileSkills.indexOf(skill) >= 0 ? skill : "";
 

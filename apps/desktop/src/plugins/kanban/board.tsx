@@ -678,6 +678,13 @@ function NewTaskDialog({
   // A stale pick (from a previous assignee) must never ride along silently.
   const selectedSkills = skills.filter(name => profileSkills.includes(name))
 
+  // Drop such picks from state too, or switching back to the earlier assignee revives them.
+  useEffect(() => {
+    if (skillsData) {
+      setSkills(prev => prev.filter(name => skillsData.skills.includes(name)))
+    }
+  }, [skillsData])
+
   // Reset per open — the dialog is externally controlled (open = target set),
   // so onOpenChange(true) never fires; key the reset off `target` (and the
   // resolved board default, which may arrive after the first open).

@@ -1186,17 +1186,20 @@ def test_profile_skills_support_dirs_excluded(kanban_home, client):
 
 def test_profile_skills_lists_active_org_mirror(kanban_home, client):
     # With the sync-client-written .active_org marker, the active org's mirror
-    # resolves — same gating and same in-mirror naming as the runtime loader
-    # (agent.prompt_builder strips the `_org/<org_id>/` prefix).
-    (kanban_home / "skills" / "_org" / "acme").mkdir(parents=True)
-    (kanban_home / "skills" / "_org" / ".active_org").write_text("acme", encoding="utf-8")
+    # lists under its full path, which skill_view() resolves as a direct path.
+    from tools.skills_tool import _collect_skill_candidates
+
+    skills_dir = kanban_home / "skills"
+    (skills_dir / "_org" / "acme").mkdir(parents=True)
+    (skills_dir / "_org" / ".active_org").write_text("acme", encoding="utf-8")
     _make_skills(kanban_home, "_org/acme/shared-translation",
                 "_org/acme/research/org-research")
     r = client.get("/api/plugins/kanban/profiles/default/skills")
     assert r.status_code == 200
-    # Mirror skills list under their in-mirror path (org prefix stripped,
-    # matching the runtime loader).
-    assert r.json()["skills"] == ["research/org-research", "shared-translation"]
+    names = r.json()["skills"]
+    assert names == ["_org/acme/research/org-research", "_org/acme/shared-translation"]
+    for name in names:
+        assert len(_collect_skill_candidates(name, None, [skills_dir])) == 1, name
 
 
 def test_profile_skills_404_unknown_profile(kanban_home, client):
