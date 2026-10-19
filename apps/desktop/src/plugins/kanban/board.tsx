@@ -63,8 +63,10 @@ import {
 } from '@hermes/plugin-sdk'
 import {
   type CSSProperties,
+  type Dispatch,
   type DragEvent as ReactDragEvent,
   type ReactNode,
+  type SetStateAction,
   useEffect,
   useMemo,
   useRef,
@@ -606,6 +608,56 @@ export function SkillsPicker({
   )
 }
 
+// The skills installed for the profile that will run the task (blank or parked = the resolved
+// default), re-queried per assignee. Picks the new roster lacks are dropped from state too, or
+// switching back to the earlier assignee would revive them.
+function useProfileSkills(assignee: string, resolvedDefault: string, setPicked: Dispatch<SetStateAction<string[]>>) {
+  const scope = useKanbanScope()
+  const profile = assignee && assignee !== PARKED ? assignee : resolvedDefault
+
+  const { data, isError, isFetching, refetch } = useQuery({
+    queryKey: ['kanban', 'profile-skills', scope, profile],
+    queryFn: () => fetchProfileSkills(profile),
+    staleTime: 60_000,
+    retry: false
+  })
+
+  useEffect(() => {
+    if (data) {
+      setPicked(prev => prev.filter(name => data.skills.includes(name)))
+    }
+  }, [data, setPicked])
+
+  return { failed: isError, loading: isFetching, refetch, skills: data?.skills ?? [] }
+}
+
+interface SkillsHintProps {
+  empty: boolean
+  failed: boolean
+  loading: boolean
+  onRetry: () => void
+}
+
+// Empty roster and fetch failures are states, not errors: the task still creates fine without an
+// extra skill. A failed fetch caches for the stale window, so offer a manual retry rather than
+// stranding the profile with no skills until it lapses.
+function SkillsHint({ empty, failed, loading, onRetry }: SkillsHintProps) {
+  const k = useKanban()
+
+  if (!failed) {
+    return <span className="text-[0.625rem] text-(--ui-text-quaternary)">{empty ? k.noSkillsForProfile : ''}</span>
+  }
+
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span className="text-[0.625rem] text-(--ui-text-quaternary)">{k.skillsLoadFailed}</span>
+      <Button disabled={loading} onClick={onRetry} size="inline" variant="textStrong">
+        {loading ? k.retryingSkills : k.retrySkills}
+      </Button>
+    </span>
+  )
+}
+
 function NewTaskDialog({
   onClose,
   parents,
@@ -667,33 +719,9 @@ function NewTaskDialog({
     }
   })
 
-  // The skills dropdown's options: the chosen assignee's installed skills
-  // (empty assignee = the resolved default). Re-queries on every assignee
-  // change, so options track the selection immediately.
-  const skillsProfile = assignee && assignee !== PARKED ? assignee : resolvedDefault
-
-  const {
-    data: skillsData,
-    isError: skillsFailed,
-    isFetching: skillsLoading,
-    refetch: refetchSkills
-  } = useQuery({
-    queryKey: ['kanban', 'profile-skills', scope, skillsProfile],
-    queryFn: () => fetchProfileSkills(skillsProfile),
-    staleTime: 60_000,
-    retry: false
-  })
-
-  const profileSkills = skillsData?.skills ?? []
+  const skillRoster = useProfileSkills(assignee, resolvedDefault, setSkills)
   // A stale pick (from a previous assignee) must never ride along silently.
-  const selectedSkills = skills.filter(name => profileSkills.includes(name))
-
-  // Drop such picks from state too, or switching back to the earlier assignee revives them.
-  useEffect(() => {
-    if (skillsData) {
-      setSkills(prev => prev.filter(name => skillsData.skills.includes(name)))
-    }
-  }, [skillsData])
+  const selectedSkills = skills.filter(name => skillRoster.skills.includes(name))
 
   // Reset per open — the dialog is externally controlled (open = target set),
   // so onOpenChange(true) never fires; key the reset off `target` (and the
@@ -850,28 +878,13 @@ function NewTaskDialog({
           </Field>
 
           <Field label={k.skills}>
-            <SkillsPicker onChange={setSkills} options={profileSkills} value={selectedSkills} />
-            {/* Empty roster and fetch failures are states, not errors — the
-                task still creates fine without an extra skill. A failed fetch
-                caches for the stale window, so offer a manual retry rather than
-                stranding the profile with no skills until it lapses. */}
-            {skillsFailed ? (
-              <span className="inline-flex items-center gap-1.5">
-                <span className="text-[0.625rem] text-(--ui-text-quaternary)">{k.skillsLoadFailed}</span>
-                <Button
-                  disabled={skillsLoading}
-                  onClick={() => void refetchSkills()}
-                  size="inline"
-                  variant="textStrong"
-                >
-                  {skillsLoading ? k.retryingSkills : k.retrySkills}
-                </Button>
-              </span>
-            ) : (
-              <span className="text-[0.625rem] text-(--ui-text-quaternary)">
-                {profileSkills.length === 0 ? k.noSkillsForProfile : ''}
-              </span>
-            )}
+            <SkillsPicker onChange={setSkills} options={skillRoster.skills} value={selectedSkills} />
+            <SkillsHint
+              empty={skillRoster.skills.length === 0}
+              failed={skillRoster.failed}
+              loading={skillRoster.loading}
+              onRetry={() => void skillRoster.refetch()}
+            />
           </Field>
 
           <Field label={k.model}>
