@@ -391,6 +391,8 @@ class SessionCloseParams(SessionParams):
 
 class SessionCloseResult(Result):
     closed: bool  # False when the runtime id was already gone
+    # Plugin ``on_session_finalize`` text for the user; shown out-of-band, never a model turn.
+    messages: list[str] = Field(default_factory=list)
 
 
 method("session.close", params=SessionCloseParams, result=SessionCloseResult,
@@ -719,6 +721,10 @@ method("terminal.resize", params=TerminalResizeParams, result=TerminalResizeResu
 
 class SessionEventsSinceParams(SessionParams):
     last_seen: int | None = None
+    # Accepted and ignored. Legacy seqs are per process, and the client compares the answer's
+    # ``epoch`` with the process epoch from ``gateway.ready``. Clients that still send that
+    # process epoch here must replay; any other unknown key stays refused.
+    replay_epoch: str | None = None
 
 
 class SessionEventsSinceResult(Result):
@@ -775,3 +781,4 @@ class LlmOneshotResult(Result):
 
 method("llm.oneshot", params=LlmOneshotParams, result=LlmOneshotResult,
        doc="Stateless one-shot LLM completion (titles, ideas) on the session's or the task backend.")
+
