@@ -4086,38 +4086,6 @@ def gc_worker_logs(*, older_than_seconds: int = 30 * 24 * 3600, board: Optional[
     return removed
 
 
-# --- Worker log accessor ---
-
-def worker_log_path(task_id: str, *, board: Optional[str] = None) -> Path:
-    """Worker log path (may not exist). The dispatcher always passes ``board``
-    explicitly to avoid resolution ambiguity."""
-    return worker_logs_dir(board=board) / f"{task_id}.log"
-
-
-def read_worker_log(
-    task_id: str, *, tail_bytes: Optional[int] = None, board: Optional[str] = None,
-) -> Optional[str]:
-    """Worker log text (last ``tail_bytes`` when set); None when the file is missing."""
-    path = worker_log_path(task_id, board=board)
-    if not path.exists():
-        return None
-    try:
-        if tail_bytes is None:
-            return path.read_text(encoding="utf-8-sig", errors="replace")
-        size = path.stat().st_size
-        with open(path, "rb") as f:
-            if size > tail_bytes:
-                f.seek(size - tail_bytes)
-                # Skip the partial first line unless the window has no newline
-                # at all (readline() would eat everything).
-                probe = f.tell()
-                if not f.readline().endswith(b"\n") and f.tell() >= size:
-                    f.seek(probe)
-            return f.read().decode("utf-8", errors="replace")
-    except OSError:
-        return None
-
-
 # --- Assignee enumeration (known profiles + per-profile board stats) ---
 
 def list_profiles_on_disk() -> list[str]:
@@ -4276,4 +4244,8 @@ from hermes_cli.kanban_db_dispatch import (
     _worker_alive,
     _worker_survived_termination,
     _worker_terminal_timeout_env,
+)
+from hermes_cli.kanban_db_worker_log import (
+    read_worker_log,
+    worker_log_path,
 )
