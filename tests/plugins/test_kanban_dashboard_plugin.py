@@ -1152,37 +1152,14 @@ def test_profile_skills_empty_when_none_installed(kanban_home, client):
 
 def test_profile_skills_support_dirs_excluded(kanban_home, client):
     # references/ inside an actual skill dir must not surface as a skill
-    # (progressive-disclosure support path), and neither should an _org
-    # mirror entry without the token-gating .active_org marker.
+    # (progressive-disclosure support path).
     _make_skills(kanban_home, "devops/labfinder-ci-pipelines")
     skill = kanban_home / "skills" / "devops" / "labfinder-ci-pipelines"
     (skill / "references").mkdir(parents=True)
     (skill / "references" / "SKILL.md").write_text("not a skill\n", encoding="utf-8")
-    (kanban_home / "skills" / "_org" / "acme" / "shared").mkdir(parents=True)
-    (kanban_home / "skills" / "_org" / "acme" / "shared" / "SKILL.md").write_text(
-        "mirror\n", encoding="utf-8"
-    )
     r = client.get("/api/plugins/kanban/profiles/default/skills")
     assert r.status_code == 200
     assert r.json()["skills"] == ["devops/labfinder-ci-pipelines"]
-
-
-def test_profile_skills_lists_active_org_mirror(kanban_home, client):
-    # With the sync-client-written .active_org marker, the active org's mirror
-    # lists under its full path, which skill_view() resolves as a direct path.
-    from tools.skills_tool import _collect_skill_candidates
-
-    skills_dir = kanban_home / "skills"
-    (skills_dir / "_org" / "acme").mkdir(parents=True)
-    (skills_dir / "_org" / ".active_org").write_text("acme", encoding="utf-8")
-    _make_skills(kanban_home, "_org/acme/shared-translation",
-                "_org/acme/research/org-research")
-    r = client.get("/api/plugins/kanban/profiles/default/skills")
-    assert r.status_code == 200
-    names = r.json()["skills"]
-    assert names == ["_org/acme/research/org-research", "_org/acme/shared-translation"]
-    for name in names:
-        assert len(_collect_skill_candidates(name, None, [skills_dir])) == 1, name
 
 
 def test_profile_skills_404_unknown_profile(kanban_home, client):

@@ -1600,8 +1600,8 @@ def list_profile_skills(profile_name: str):
     Consumed by the task-creation forms (dashboard + desktop kanban) to
     offer a skills dropdown scoped to the chosen assignee. Each name is the
     skill directory's full path relative to the profile's ``skills/`` dir
-    (``_org/<id>/`` mirrors included) so a picked value round-trips through
-    ``--skills`` preload and ``skill_view()`` lookup unchanged.
+    so a picked value round-trips through ``--skills`` preload and
+    ``skill_view()`` lookup unchanged.
     """
     try:
         from agent.skill_utils import iter_skill_index_files
@@ -1634,8 +1634,7 @@ def list_profile_skills(profile_name: str):
             parts = list(rel.parts[:-1])  # drop the SKILL.md filename
             if not parts:
                 continue
-            # The FULL path relative to skills_dir (org prefix kept: stripped,
-            # ``_org/acme/research/x`` → ``research/x`` resolves to nothing),
+            # The FULL path relative to skills_dir,
             # e.g. ``mlops/evaluation/evaluating-llms-harness``. This is the
             # exact identifier ``skill_view()`` resolves, so a picked value
             # round-trips through the worker's ``--skills`` preload. (A
